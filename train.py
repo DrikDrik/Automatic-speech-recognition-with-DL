@@ -1,7 +1,7 @@
 import warnings
 import io
 from pathlib import Path
-
+from src.datasets.collate import collate_fn
 import hydra
 import torch
 from hydra.utils import instantiate, get_original_cwd
@@ -65,7 +65,6 @@ def main(config):
         shuffle=True,
     )
 
-    collate_fn = instantiate(config.dataloader.collate_fn)
 
 
     from torch.utils.data import DataLoader
