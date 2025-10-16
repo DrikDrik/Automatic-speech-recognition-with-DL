@@ -19,7 +19,6 @@ def main(config):
         device = "cuda" if torch.cuda.is_available() else "cpu"
     else:
         device = config.trainer.device
-    logger.info("Using device: %s", device)
 
     tokenizer_name = config.tokenizer.get("name", "openai/whisper-small")
     tokenizer = WhisperTokenizer.from_pretrained(tokenizer_name)
