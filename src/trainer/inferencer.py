@@ -10,7 +10,7 @@ from src.text_encoder.text import tokens_to_text
 
 class Inferencer:
 
-    def __init__(self, encoder, decoder, config, device, dataloaders, text_encoder, skip_model_load=False, output_dir=None):
+    def __init__(self, encoder, decoder, config, device, dataloaders, tokenizer, skip_model_load=False, output_dir=None):
         assert skip_model_load or config.inferencer.get("from_pretrained") is not None, \
             "Provide checkpoint or set skip_model_load=True"
 
@@ -20,7 +20,7 @@ class Inferencer:
 
         self.encoder = encoder.to(device)
         self.decoder = decoder.to(device)
-        self.text_encoder = text_encoder
+        self.tokenizer = tokenizer
         self.dataloaders = dataloaders
         self.beam_size = int(self.cfg_trainer.get("beam_size", 5))
         self.output_dir = output_dir
@@ -92,14 +92,14 @@ class Inferencer:
                 for i in range(B):
                     id_ = batch["id"][i] if isinstance(batch["id"], (list, tuple)) else batch["id"][i].item()
 
-                    pred_text = tokens_to_text(beam_tokens[i].cpu(), self.text_encoder, pad_id=pad_id_local).strip()
+                    pred_text = tokens_to_text(beam_tokens[i].cpu(), self.tokenizer, pad_id=pad_id_local).strip()
 
                     if self.output_dir:
                         with open(os.path.join(self.output_dir, f"{part}/pred_ID{id_}.txt"), "w") as f:
                             f.write(pred_text)
 
                     if has_gt:
-                        ref_text = tokens_to_text(refs[i].cpu(), self.text_encoder, pad_id=pad_id_local).strip()
+                        ref_text = tokens_to_text(refs[i].cpu(), self.tokenizer, pad_id=pad_id_local).strip()
 
                         total_word_edits += levenshtein(ref_text.split(), pred_text.split())
                         total_words += len(ref_text.split())
@@ -107,8 +107,8 @@ class Inferencer:
                         total_chars += len(ref_text)
 
                 if B > 0 and has_gt:
-                    ref_first = tokens_to_text(refs[0].cpu(), self.text_encoder, pad_id=pad_id_local).strip()
-                    pred_first = tokens_to_text(beam_tokens[0].cpu(), self.text_encoder, pad_id=pad_id_local).strip()
+                    ref_first = tokens_to_text(refs[0].cpu(), self.tokenizer, pad_id=pad_id_local).strip()
+                    pred_first = tokens_to_text(beam_tokens[0].cpu(), self.tokenizer, pad_id=pad_id_local).strip()
 
                     wer_first = levenshtein(ref_first.split(), pred_first.split()) / max(1, len(ref_first.split()))
                     cer_first = levenshtein(list(ref_first), list(pred_first)) / max(1, len(ref_first))

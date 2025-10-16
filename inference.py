@@ -147,7 +147,7 @@ def main(config):
     base_out = Path(get_original_cwd()) / output_dir
     base_out.mkdir(parents=True, exist_ok=True)
 
-    from src.trainer import Inferencer
+    from src.trainer.inferencer import Inferencer
 
     inferencer = Inferencer(
         encoder=encoder,

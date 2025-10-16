@@ -38,6 +38,7 @@ trainer:
   examples_per_log: 3
   eval_batches: 10
   seed: 1
+  run_name: "default_run"
   start_epoch: 0
 
 pretrained:
