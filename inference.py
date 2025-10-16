@@ -73,8 +73,6 @@ def collate_fn(batch, pad_id=50256):
 @hydra.main(version_base=None, config_path="src/configs", config_name="inference")
 def main(config):
     device = "cuda" if (config.inferencer.device == "auto" and torch.cuda.is_available()) else config.inferencer.device
-    text_encoder = instantiate(config.text_encoder)
-
     tokenizer_name = config.get("tokenizer", {}).get("name", "openai/whisper-small")
     tokenizer = WhisperTokenizer.from_pretrained(tokenizer_name)
 
@@ -157,7 +155,6 @@ def main(config):
         config=config,
         device=device,
         dataloaders=dataloaders,
-        text_encoder=text_encoder,
         skip_model_load=bool(config.inferencer.get("skip_model_load", False)),
         output_dir=str(base_out),
     )

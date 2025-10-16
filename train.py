@@ -123,6 +123,7 @@ def main(config):
         log_interval=int(config.trainer.log_interval),
         examples_per_log=int(config.trainer.examples_per_log),
         eval_batches=int(config.trainer.eval_batches),
+        run_name=config.get("run_name", "default_run"),
     )
     
 
