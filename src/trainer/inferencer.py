@@ -1,195 +1,130 @@
 import torch
 from tqdm.auto import tqdm
+import gdown
+import os
+from src.transforms.specs import compute_log_melspectrogram
+from src.utils.utils import compute_downsampled_len
+from src.metrics.utils import levenshtein
+from src.text_encoder.text import tokens_to_text
 
-from src.metrics.tracker import MetricTracker
-from src.trainer.base_trainer import BaseTrainer
 
+class Inferencer:
 
-class Inferencer(BaseTrainer):
-    """
-    Inferencer (Like Trainer but for Inference) class
-
-    The class is used to process data without
-    the need of optimizers, writers, etc.
-    Required to evaluate the model on the dataset, save predictions, etc.
-    """
-
-    def __init__(
-        self,
-        model,
-        config,
-        device,
-        dataloaders,
-        text_encoder,
-        save_path,
-        metrics=None,
-        batch_transforms=None,
-        skip_model_load=False,
-    ):
-        """
-        Initialize the Inferencer.
-
-        Args:
-            model (nn.Module): PyTorch model.
-            config (DictConfig): run config containing inferencer config.
-            device (str): device for tensors and model.
-            dataloaders (dict[DataLoader]): dataloaders for different
-                sets of data.
-            text_encoder (CTCTextEncoder): text encoder.
-            save_path (str): path to save model predictions and other
-                information.
-            metrics (dict): dict with the definition of metrics for
-                inference (metrics[inference]). Each metric is an instance
-                of src.metrics.BaseMetric.
-            batch_transforms (dict[nn.Module] | None): transforms that
-                should be applied on the whole batch. Depend on the
-                tensor name.
-            skip_model_load (bool): if False, require the user to set
-                pre-trained checkpoint path. Set this argument to True if
-                the model desirable weights are defined outside of the
-                Inferencer Class.
-        """
-        assert (
-            skip_model_load or config.inferencer.get("from_pretrained") is not None
-        ), "Provide checkpoint or set skip_model_load=True"
+    def __init__(self, encoder, decoder, config, device, dataloaders, text_encoder, skip_model_load=False, output_dir=None):
+        assert skip_model_load or config.inferencer.get("from_pretrained") is not None, \
+            "Provide checkpoint or set skip_model_load=True"
 
         self.config = config
-        self.cfg_trainer = self.config.inferencer
-
+        self.cfg_trainer = config.inferencer
         self.device = device
 
-        self.model = model
-        self.batch_transforms = batch_transforms
-
+        self.encoder = encoder.to(device)
+        self.decoder = decoder.to(device)
         self.text_encoder = text_encoder
+        self.dataloaders = dataloaders
+        self.beam_size = int(self.cfg_trainer.get("beam_size", 5))
+        self.output_dir = output_dir
 
-        # define dataloaders
-        self.evaluation_dataloaders = {k: v for k, v in dataloaders.items()}
-
-        # path definition
-
-        self.save_path = save_path
-
-        # define metrics
-        self.metrics = metrics
-        if self.metrics is not None:
-            self.evaluation_metrics = MetricTracker(
-                *[m.name for m in self.metrics["inference"]],
-                writer=None,
-            )
-        else:
-            self.evaluation_metrics = None
+        if self.output_dir:
+            os.makedirs(self.output_dir, exist_ok=True)
 
         if not skip_model_load:
-            # init model
-            self._from_pretrained(config.inferencer.get("from_pretrained"))
+            encoder_link = "https://drive.google.com/uc?export=download&id=1UpX3_UgrbRTWYunAMHPsR09a1_zHzj7E"
+            encoder.load_state_dict(torch.load(gdown.download(encoder_link), map_location='cuda'))
+            decoder_link = "https://drive.google.com/uc?export=download&id=1A1Cb1TCn5LWYuIADkOsfvzlBBBi2L2bi"
+            decoder.load_state_dict(torch.load(gdown.download(decoder_link), map_location='cuda'))
 
-    def run_inference(self):
-        """
-        Run inference on each partition.
+    def move_batch_to_device(self, batch):
+        return {k: v.to(self.device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
 
-        Returns:
-            part_logs (dict): part_logs[part_name] contains logs
-                for the part_name partition.
-        """
-        part_logs = {}
-        for part, dataloader in self.evaluation_dataloaders.items():
-            logs = self._inference_part(part, dataloader)
-            part_logs[part] = logs
-        return part_logs
-
-    def process_batch(self, batch_idx, batch, metrics, part):
-        """
-        Run batch through the model, compute metrics, and
-        save predictions to disk.
-
-        Save directory is defined by save_path in the inference
-        config and current partition.
-
-        Args:
-            batch_idx (int): the index of the current batch.
-            batch (dict): dict-based batch containing the data from
-                the dataloader.
-            metrics (MetricTracker): MetricTracker object that computes
-                and aggregates the metrics. The metrics depend on the type
-                of the partition (train or inference).
-            part (str): name of the partition. Used to define proper saving
-                directory.
-        Returns:
-            batch (dict): dict-based batch containing the data from
-                the dataloader (possibly transformed via batch transform)
-                and model outputs.
-        """
-        # TODO change inference logic so it suits ASR assignment
-        # and task pipeline
-
-        batch = self.move_batch_to_device(batch)
-        batch = self.transform_batch(batch)  # transform batch on device -- faster
-
-        outputs = self.model(**batch)
-        batch.update(outputs)
-
-        if metrics is not None:
-            for met in self.metrics["inference"]:
-                metrics.update(met.name, met(**batch))
-
-        # Some saving logic. This is an example
-        # Use if you need to save predictions on disk
-
-        batch_size = batch["logits"].shape[0]
-        current_id = batch_idx * batch_size
-
-        for i in range(batch_size):
-            # clone because of
-            # https://github.com/pytorch/pytorch/issues/1995
-            logits = batch["logits"][i].clone()
-            label = batch["labels"][i].clone()
-            pred_label = logits.argmax(dim=-1)
-
-            output_id = current_id + i
-
-            output = {
-                "pred_label": pred_label,
-                "label": label,
-            }
-
-            if self.save_path is not None:
-                # you can use safetensors or other lib here
-                torch.save(output, self.save_path / part / f"output_{output_id}.pth")
-
+    def transform_batch(self, batch):
         return batch
 
+    def run_inference(self):
+        results = {} 
+        for part, loader in self.dataloaders.items():
+            results[part] = self._inference_part(part, loader)
+        return results
+
     def _inference_part(self, part, dataloader):
-        """
-        Run inference on a given partition and save predictions
+        self.encoder.eval()
+        self.decoder.eval()
 
-        Args:
-            part (str): name of the partition.
-            dataloader (DataLoader): dataloader for the given partition.
-        Returns:
-            logs (dict): metrics, calculated on the partition.
-        """
+        total_word_edits, total_words = 0, 0
+        total_char_edits, total_chars = 0, 0
+        sample_table = []
+        pad_id_local = 50256
 
-        self.is_train = False
-        self.model.eval()
-
-        self.evaluation_metrics.reset()
-
-        # create Save dir
-        if self.save_path is not None:
-            (self.save_path / part).mkdir(exist_ok=True, parents=True)
+        has_gt = False
 
         with torch.no_grad():
-            for batch_idx, batch in tqdm(
-                enumerate(dataloader),
-                desc=part,
-                total=len(dataloader),
-            ):
-                batch = self.process_batch(
-                    batch_idx=batch_idx,
-                    batch=batch,
-                    part=part,
-                    metrics=self.evaluation_metrics,
-                )
+            for batch_idx, batch in tqdm(enumerate(dataloader), desc=f"{part} (beam{self.beam_size})", total=len(dataloader)):
+                batch = self.move_batch_to_device(batch)
+                batch = self.transform_batch(batch)
 
-        return self.evaluation_metrics.result()
+                audio = batch["audio"]
+                audio_lengths = batch["audio_lengths"]
+                sr = batch.get("sr", None)
+
+                B = audio.size(0)
+                mels, mel_lens = compute_log_melspectrogram(audio, audio_lengths, sr=sr, device=self.device, augment=False)
+                mels = mels.transpose(2, 1)
+
+                padded_len = mels.size(1)
+                conv1_padded = compute_downsampled_len(torch.tensor(padded_len, device=self.device))
+                max_enc_len = compute_downsampled_len(conv1_padded)
+                conv1_lens = compute_downsampled_len(mel_lens)
+                enc_lens = compute_downsampled_len(conv1_lens)
+
+                enc_key_padding_mask = torch.ones(B, max_enc_len, device=self.device, dtype=torch.bool)
+                for i in range(B):
+                    enc_key_padding_mask[i, :enc_lens[i]] = False
+
+                enc_out = self.encoder(mels.unsqueeze(1), key_padding_mask=enc_key_padding_mask)
+                beam_tensor = self.decoder.beam_search_decode(
+                    enc_out, beam_size=self.beam_size, device=self.device, cross_key_padding_mask=enc_key_padding_mask
+                )
+                beam_tokens = beam_tensor[:, 0, :]
+
+                refs = batch.get("text", batch.get("labels", None))
+                has_gt = refs is not None
+
+                for i in range(B):
+                    id_ = batch["id"][i] if isinstance(batch["id"], (list, tuple)) else batch["id"][i].item()
+
+                    pred_text = tokens_to_text(beam_tokens[i].cpu(), self.text_encoder, pad_id=pad_id_local).strip()
+
+                    if self.output_dir:
+                        with open(os.path.join(self.output_dir, f"{id_}.txt"), "w") as f:
+                            f.write(pred_text)
+
+                    if has_gt:
+                        ref_text = tokens_to_text(refs[i].cpu(), self.text_encoder, pad_id=pad_id_local).strip()
+
+                        total_word_edits += levenshtein(ref_text.split(), pred_text.split())
+                        total_words += len(ref_text.split())
+                        total_char_edits += levenshtein(list(ref_text), list(pred_text))
+                        total_chars += len(ref_text)
+
+                if B > 0 and has_gt:
+                    ref_first = tokens_to_text(refs[0].cpu(), self.text_encoder, pad_id=pad_id_local).strip()
+                    pred_first = tokens_to_text(beam_tokens[0].cpu(), self.text_encoder, pad_id=pad_id_local).strip()
+
+                    wer_first = levenshtein(ref_first.split(), pred_first.split()) / max(1, len(ref_first.split()))
+                    cer_first = levenshtein(list(ref_first), list(pred_first)) / max(1, len(ref_first))
+                    sample_table.append({
+                        "dataset": part,
+                        "batch_idx": batch_idx,
+                        "target": ref_first,
+                        "predict_beam": pred_first,
+                        "wer_beam": wer_first,
+                        "cer_beam": cer_first,
+                    })
+
+        metrics = {}
+        if has_gt:
+            wer = total_word_edits / max(1, total_words)
+            cer = total_char_edits / max(1, total_chars)
+            metrics = {"wer_beam": wer, "cer_beam": cer, "sample_table": sample_table}
+            print(f"\n=== {part} FINAL: WER={wer:.4f}, CER={cer:.4f} ===\n")
+        return metrics

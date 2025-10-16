@@ -31,11 +31,12 @@ class LibriSpeechTorchDataset(IterableDataset):
 
 
             text_tensor = self.tokenizer(item["text"], return_tensors="pt").input_ids.squeeze(0)
-
+            id = item['id']
             yield {
                 "sr": sr,
                 "audio": audio_tensor,
                 "text": text_tensor,
+                "id": id
             }
 
 
