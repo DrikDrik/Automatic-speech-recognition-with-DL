@@ -1,0 +1,9 @@
+defaults:
+  - _self_
+
+paths:
+  gt_dir: "data/ground_truth"
+  pred_dir: "data/predictions"   
+
+normalize: true        
+out_path: "metrics/wer_cer_report.json" 

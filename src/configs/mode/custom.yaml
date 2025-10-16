@@ -1,0 +1,10 @@
+datasets:
+  hf:
+    enabled: false
+
+  custom_dir:
+    enabled: true
+    path: "/full/path/to/your/custom_dir"
+
+inferencer:
+  batch_size: 8

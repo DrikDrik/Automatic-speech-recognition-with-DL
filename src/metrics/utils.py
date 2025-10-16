@@ -1,8 +1,3 @@
-# Based on seminar materials
-
-# Don't forget to support cases when target_text == ''
-
-
 def levenshtein(seq1, seq2):
     n, m = len(seq1), len(seq2)
     if n == 0:
@@ -19,13 +14,3 @@ def levenshtein(seq1, seq2):
             cur[j] = min(ins, dele, sub)
         prev = cur
     return prev[m]
-
-
-def calc_cer(target_text, predicted_text) -> float:
-    # TODO
-    pass
-
-
-def calc_wer(target_text, predicted_text) -> float:
-    # TODO
-    pass

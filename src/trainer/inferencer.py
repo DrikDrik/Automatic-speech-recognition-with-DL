@@ -95,7 +95,7 @@ class Inferencer:
                     pred_text = tokens_to_text(beam_tokens[i].cpu(), self.text_encoder, pad_id=pad_id_local).strip()
 
                     if self.output_dir:
-                        with open(os.path.join(self.output_dir, f"{id_}.txt"), "w") as f:
+                        with open(os.path.join(self.output_dir, f"{part}/pred_ID{id_}.txt"), "w") as f:
                             f.write(pred_text)
 
                     if has_gt:

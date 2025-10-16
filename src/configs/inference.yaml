@@ -1,13 +1,24 @@
 defaults:
-  - model: baseline
-  - metrics: example
-  - datasets: example_eval # we do not want to run inference on training data
-  - dataloader: example
-  - transforms: example
+  - mode: hf  
   - _self_
+
+tokenizer:
+  name: "openai/whisper-small"
+
+dataloader:
+  num_workers: 4
+
+model:
+  encoder:
+    _target_: src.models.models.Encoder
+  decoder:
+    _target_: src.models.models.Decoder
+
 inferencer:
-  device_tensors: ["data_object", "labels"] # which tensors should be on device (ex. GPU)
-  device: auto # device name or "auto"
-  save_path: "example" # any name here, can be a dataset name
   seed: 1
-  from_pretrained: "saved/model_best.pth" # path to the pretrained model
+  device: auto           
+  batch_size: 16        
+  pad_id: 50256
+  beam_size: 5
+  skip_model_load: false 
+  output_dir: "inference_predictions" 

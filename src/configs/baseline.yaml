@@ -1,35 +1,44 @@
 defaults:
-  - model: baseline
-  - writer: wandb
-  - metrics: example
-  - datasets: example
-  - dataloader: example
-  - transforms: example_only_instance
   - _self_
-optimizer:
-  _target_: torch.optim.AdamW
-  lr: 3e-4
-lr_scheduler:
-  _target_: torch.optim.lr_scheduler.OneCycleLR
-  max_lr: 1e-2
-  pct_start: 0.1
-  steps_per_epoch: ${trainer.epoch_len}
-  epochs: ${trainer.n_epochs}
-  anneal_strategy: cos
-loss_function:
-  _target_: src.loss.CTCLossWrapper
-text_encoder:
-  _target_: src.text_encoder.CTCTextEncoder
+
+tokenizer:
+  name: "openai/whisper-small"
+
+datasets:
+  hf:
+    train_clean_split: "train.360"
+    train_other_split: "train.500"
+    val_clean_split: "validation"
+    val_other_split: "validation"
+    lengths: [104014, 148688]
+
+dataloader:
+  batch_size_train: 32
+  batch_size_val: 16
+  num_workers: 4
+  collate_fn:
+    _target_: src.datasets.collate.collate_fn
+
+model:
+  encoder:
+    _target_: src.models.models.Encoder
+  decoder:
+    _target_: src.models.models.Decoder
+
 trainer:
-  log_step: 50
-  n_epochs: 50
-  epoch_len: 200
-  device_tensors: ["spectrogram", "text_encoded"] # which tensors should be on device (ex. GPU)
-  resume_from: null # null or path to the checkpoint dir with *.pth and config.yaml
-  device: auto # device name or "auto"
-  override: False # if True, will override the previous run with the same name
-  monitor: "min val_WER_(Argmax)" # "off" or "max/min metric_name", i.e. our goal is to maximize/minimize metric
-  save_period: 5 # checkpoint each save_period epochs in addition to the best epoch
-  early_stop: ${trainer.n_epochs} # epochs for early stopping
-  save_dir: "saved"
+  device: auto
+  pad_id: 50256
+  eos_id: 50257
+  bos_id: 50258
+  notimestamps_id: 50363
+  vocab_size: 51865
+  start_lr: 1e-4
+  num_epochs: 100
+  log_interval: 100
+  examples_per_log: 3
+  eval_batches: 10
   seed: 1
+
+pretrained:
+  encoder_link: "https://drive.google.com/uc?export=download&id=1UpX3_UgrbRTWYunAMHPsR09a1_zHzj7E"
+  decoder_link: "https://drive.google.com/uc?export=download&id=1A1Cb1TCn5LWYuIADkOsfvzlBBBi2L2bi"

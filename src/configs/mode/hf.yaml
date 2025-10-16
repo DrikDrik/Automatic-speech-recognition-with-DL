@@ -1,0 +1,12 @@
+datasets:
+  hf:
+    enabled: true
+    test_clean_split: "test"
+    test_other_split: "test"
+    lengths_test: [2620, 2939]
+
+  custom_dir:
+    enabled: false
+
+inferencer:
+  batch_size: 16

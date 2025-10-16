@@ -9,11 +9,13 @@ def collate_fn(batch):
     texts = [item["text"] for item in batch]
     texts_padded = pad_sequence(texts, batch_first=True, padding_value=pad_id)
     srs = [item["sr"] for item in batch]
+    ids = [item["ids"] for item in batch]
     
     return {
         "audio": audios_padded,
         "text": texts_padded,
         'sr': srs[0],
         'audio_lengths': torch.tensor(audio_lengths),
-        'len': audios_padded.shape[-1]
+        'len': audios_padded.shape[-1],
+        'ids' : ids
     }

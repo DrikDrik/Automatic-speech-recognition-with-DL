@@ -12,11 +12,15 @@ from src.transforms.wav_augs import random_gain, add_noise
 # IT IS VERY MEMORY EFFICIENT AND SUITABLE IN CASE YOU DON'T HAVE TIME TO DOWNLOAD THE WHOLE DATASET LOCALLY
 
 class LibriSpeechTorchDataset(IterableDataset):
-    def __init__(self, hf_dataset, tokenizer, augment=True):
+    def __init__(self, hf_dataset, tokenizer, length, augment=True):
         self.dataset = hf_dataset
         self.tokenizer = tokenizer
         self.augment = augment
-
+        self.length = length
+        
+    def __len__(self):
+        return self.length
+     
     def __iter__(self):
         for item in self.dataset:
             audio_info = item["audio"]
