@@ -9,7 +9,7 @@ def collate_fn(batch):
     texts = [item["text"] for item in batch]
     texts_padded = pad_sequence(texts, batch_first=True, padding_value=pad_id)
     srs = [item["sr"] for item in batch]
-    ids = [item["ids"] for item in batch]
+    ids = [item["id"] for item in batch]
     
     return {
         "audio": audios_padded,
