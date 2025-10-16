@@ -5,19 +5,20 @@ import torch
 from torch.utils.data import Dataset
 import torchaudio
 from typing import Dict, Any
-
+from torchaudio.transforms import Resample
 from src.transforms.wav_augs import random_gain, add_noise
 from src.utils.io_utils import ROOT_PATH
 
 
 class CustomDirDataset(Dataset):
-    def __init__(self, data_dir: str = None, tokenizer=None, augment=False, sr = 16000, *args, **kwargs):
+    def __init__(self, data_dir: str = None, tokenizer=None, augment=False, target_sr=16000, *args, **kwargs):
         if data_dir is None:
             data_dir = ROOT_PATH / "data" / "datasets" / "custom_dir"
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(exist_ok=True, parents=True)
         self.tokenizer = tokenizer
         self.augment = augment
+        self.target_sr = target_sr
         self._index = self._get_or_load_index()
 
     def __len__(self):
@@ -26,7 +27,11 @@ class CustomDirDataset(Dataset):
     def __getitem__(self, idx: int) -> Dict[str, Any]:
         entry = self._index[idx]
         audio_path = entry["path"]
-        audio_tensor, sr = torchaudio.load(audio_path)
+        audio_tensor, original_sr = torchaudio.load(audio_path)
+
+        if original_sr != self.target_sr:
+            resampler = Resample(orig_freq=original_sr, new_freq=self.target_sr)
+            audio_tensor = resampler(audio_tensor)
         audio_tensor = audio_tensor.mean(dim=0)
 
         if self.augment:
@@ -40,7 +45,7 @@ class CustomDirDataset(Dataset):
         item_id = Path(audio_path).stem
 
         return {
-            "sr": sr,
+            "sr": self.target_sr,
             "audio": audio_tensor,
             "text": text_tensor,
             "id": item_id

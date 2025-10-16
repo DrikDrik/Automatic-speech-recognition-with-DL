@@ -71,13 +71,11 @@ def main(config):
 
     train_bs = int(config.dataloader.batch_size_train)
     val_bs = int(config.dataloader.batch_size_val)
-    num_workers = int(config.dataloader.num_workers)
 
     train_loader = DataLoader(
         dataset_train,
         batch_size=train_bs,
         shuffle=False,
-        num_workers=num_workers,
         collate_fn=collate_fn,
         pin_memory=(device == "cuda"),
     )
@@ -86,7 +84,6 @@ def main(config):
         dataset_clean_val,
         batch_size=val_bs,
         shuffle=False,
-        num_workers=num_workers,
         collate_fn=collate_fn,
         pin_memory=(device == "cuda"),
     )
@@ -95,7 +92,6 @@ def main(config):
         dataset_other_val,
         batch_size=val_bs,
         shuffle=False,
-        num_workers=num_workers,
         collate_fn=collate_fn,
         pin_memory=(device == "cuda"),
     )

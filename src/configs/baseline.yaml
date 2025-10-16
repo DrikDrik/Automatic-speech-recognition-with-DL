@@ -15,7 +15,6 @@ datasets:
 dataloader:
   batch_size_train: 32
   batch_size_val: 16
-  num_workers: 4
   collate_fn:
     _target_: src.datasets.collate.collate_fn
 

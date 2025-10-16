@@ -10,14 +10,14 @@ from src.text_encoder.text import tokens_to_text
 
 class Inferencer:
 
-    def __init__(self, encoder, decoder, config, device, dataloaders, tokenizer, skip_model_load=False, output_dir=None):
-        assert skip_model_load or config.inferencer.get("from_pretrained") is not None, \
+    def __init__(self, encoder, decoder, config, device, dataloaders, tokenizer, skip_model_load=False, output_dir=None, strategy="beam"):
+        assert not skip_model_load or config.inferencer.get("from_pretrained") is not None, \
             "Provide checkpoint or set skip_model_load=True"
 
         self.config = config
         self.cfg_trainer = config.inferencer
         self.device = device
-
+        self.strategy = strategy
         self.encoder = encoder.to(device)
         self.decoder = decoder.to(device)
         self.tokenizer = tokenizer
@@ -56,9 +56,9 @@ class Inferencer:
         pad_id_local = 50256
 
         has_gt = False
-
+        
         with torch.no_grad():
-            for batch_idx, batch in tqdm(enumerate(dataloader), desc=f"{part} (beam{self.beam_size})", total=len(dataloader)):
+            for batch_idx, batch in tqdm(enumerate(dataloader), desc=f"{part}", total=len(dataloader)):
                 batch = self.move_batch_to_device(batch)
                 batch = self.transform_batch(batch)
 
@@ -81,10 +81,15 @@ class Inferencer:
                     enc_key_padding_mask[i, :enc_lens[i]] = False
 
                 enc_out = self.encoder(mels.unsqueeze(1), key_padding_mask=enc_key_padding_mask)
-                beam_tensor = self.decoder.beam_search_decode(
-                    enc_out, beam_size=self.beam_size, device=self.device, cross_key_padding_mask=enc_key_padding_mask
-                )
-                beam_tokens = beam_tensor[:, 0, :]
+                if self.strategy == "beam":
+                    beam_tensor = self.decoder.beam_search_decode(
+                        enc_out, beam_size=self.beam_size, n_best=1, device=self.device, cross_key_padding_mask=None
+                    )
+                    tokens = beam_tensor[:, 0, :]
+                elif self.strategy == "greedy":
+                    tokens = self.decoder.autoregressive_decode(
+                        enc_out, device=self.device, cross_key_padding_mask=enc_key_padding_mask
+                    )
 
                 refs = batch.get("text", batch.get("labels", None))
                 has_gt = refs is not None
@@ -92,10 +97,13 @@ class Inferencer:
                 for i in range(B):
                     id_ = batch["id"][i] if isinstance(batch["id"], (list, tuple)) else batch["id"][i].item()
 
-                    pred_text = tokens_to_text(beam_tokens[i].cpu(), self.tokenizer, pad_id=pad_id_local).strip()
+                    pred_text = tokens_to_text(tokens[i].cpu(), self.tokenizer, pad_id=pad_id_local).strip()
 
                     if self.output_dir:
-                        with open(os.path.join(self.output_dir, f"{part}/pred_ID{id_}.txt"), "w") as f:
+                        part_dir = os.path.join(self.output_dir, part)
+                        os.makedirs(part_dir, exist_ok=True)  
+
+                        with open(os.path.join(part_dir, f"pred_ID{id_}.txt"), "w") as f:
                             f.write(pred_text)
 
                     if has_gt:
@@ -108,7 +116,7 @@ class Inferencer:
 
                 if B > 0 and has_gt:
                     ref_first = tokens_to_text(refs[0].cpu(), self.tokenizer, pad_id=pad_id_local).strip()
-                    pred_first = tokens_to_text(beam_tokens[0].cpu(), self.tokenizer, pad_id=pad_id_local).strip()
+                    pred_first = tokens_to_text(tokens[0].cpu(), self.tokenizer, pad_id=pad_id_local).strip()
 
                     wer_first = levenshtein(ref_first.split(), pred_first.split()) / max(1, len(ref_first.split()))
                     cer_first = levenshtein(list(ref_first), list(pred_first)) / max(1, len(ref_first))
@@ -116,15 +124,15 @@ class Inferencer:
                         "dataset": part,
                         "batch_idx": batch_idx,
                         "target": ref_first,
-                        "predict_beam": pred_first,
-                        "wer_beam": wer_first,
-                        "cer_beam": cer_first,
+                        "predict": pred_first,
+                        "wer": wer_first,
+                        "cer": cer_first,
                     })
 
         metrics = {}
         if has_gt:
             wer = total_word_edits / max(1, total_words)
             cer = total_char_edits / max(1, total_chars)
-            metrics = {"wer_beam": wer, "cer_beam": cer, "sample_table": sample_table}
+            metrics = {"wer": wer, "cer": cer, "sample_table": sample_table}
             print(f"\n=== {part} FINAL: WER={wer:.4f}, CER={cer:.4f} ===\n")
         return metrics

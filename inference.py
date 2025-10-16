@@ -21,6 +21,7 @@ from src.datasets.custom_dir_audio_dataset import CustomDirDataset
 warnings.filterwarnings("ignore", category=UserWarning)
 
 
+# I USE HERE DIFFERENT COLLATE_FN TO HANDLE CASES WITH NO GROUND TRUTH TEXTS
 def collate_fn(batch, pad_id=50256):
     audios = [item["audio"] for item in batch]
     audio_lengths = [a.size(0) for a in audios]
@@ -98,14 +99,12 @@ def main(config):
         dataset_other_test = LibriSpeechTorchDataset(other_ds_stream, tokenizer, length=2939, augment=False)
 
         bs = int(config.inferencer.get("batch_size", 16))
-        num_workers = int(config.dataloader.get("num_workers", 4))
         pad_id = int(config.inferencer.get("pad_id", 50256))
 
         dataloaders["test_clean"] = DataLoader(
             dataset_clean_test,
             batch_size=bs,
             shuffle=False,
-            num_workers=num_workers,
             collate_fn=collate_fn,
             pin_memory=(device == "cuda"),
         )
@@ -114,7 +113,6 @@ def main(config):
             dataset_other_test,
             batch_size=bs,
             shuffle=False,
-            num_workers=num_workers,
             collate_fn=collate_fn,
             pin_memory=(device == "cuda"),
         )
@@ -125,20 +123,15 @@ def main(config):
         custom_path = cd_cfg.get("path", None)
         cd_dataset = CustomDirDataset(data_dir=custom_path, tokenizer=tokenizer, augment=False)
         bs = int(config.inferencer.get("batch_size", 8))
-        num_workers = int(config.dataloader.get("num_workers", 4))
         pad_id = int(config.inferencer.get("pad_id", 50256))
 
         dataloaders["custom"] = DataLoader(
             cd_dataset,
             batch_size=bs,
             shuffle=False,
-            num_workers=num_workers,
             collate_fn=lambda b: collate_fn(b, pad_id=pad_id),
             pin_memory=(device == "cuda"),
         )
-
-    if len(dataloaders) == 0:
-        raise RuntimeError("No dataloaders were created. Enable at least one dataset in src/configs/inference.yaml under datasets.hf or datasets.custom_dir")
 
     encoder = instantiate(config.model.encoder).to(device)
     decoder = instantiate(config.model.decoder).to(device)
@@ -152,11 +145,13 @@ def main(config):
     inferencer = Inferencer(
         encoder=encoder,
         decoder=decoder,
+        tokenizer=tokenizer,
         config=config,
         device=device,
         dataloaders=dataloaders,
         skip_model_load=bool(config.inferencer.get("skip_model_load", False)),
         output_dir=str(base_out),
+        strategy=config.get("strategy", "beam")
     )
 
     logs = inferencer.run_inference()

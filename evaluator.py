@@ -12,7 +12,6 @@ from src.metrics.utils import levenshtein  # твоя
 
 
 def normalize_text(s):
-    """Lowercase, remove punctuation (keep word chars, whitespace, apostrophe)."""
     s = s.strip().lower()
     if s.startswith("\ufeff"):
         s = s.lstrip("\ufeff")
@@ -57,9 +56,18 @@ def compute_for_pair(gt_text, pred_text, normalize= True):
     }
 
 
-def find_txt_files(dirpath):
-    return {p.stem: p for p in dirpath.glob("*.txt") if p.is_file()}
+import re
+from pathlib import Path
 
+def find_txt_files(dirpath):
+    file_map = {}
+    id_pattern = re.compile(r"ID.*")
+    for p in dirpath.glob("*.txt"):
+        if p.is_file():
+            match = id_pattern.search(p.name)
+            if match:
+                file_map[match.group(0)] = p
+    return file_map
 
 @hydra.main(version_base=None, config_path="src/configs", config_name="metrics_eval")
 def main(cfg):
