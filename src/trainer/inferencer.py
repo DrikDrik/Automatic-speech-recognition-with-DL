@@ -102,9 +102,12 @@ class Inferencer:
                     if self.output_dir:
                         part_dir = os.path.join(self.output_dir, part)
                         os.makedirs(part_dir, exist_ok=True)  
-
-                        with open(os.path.join(part_dir, f"pred_ID{id_}.txt"), "w") as f:
-                            f.write(pred_text)
+                        if 'ID' in id_:
+                            with open(os.path.join(part_dir, f"pred_{id_}.txt"), "w") as f:
+                                f.write(pred_text)
+                        else:
+                            with open(os.path.join(part_dir, f"pred_ID{id_}.txt"), "w") as f:
+                                f.write(pred_text)
 
                     if has_gt:
                         ref_text = tokens_to_text(refs[i].cpu(), self.tokenizer, pad_id=pad_id_local).strip()
