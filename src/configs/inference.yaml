@@ -1,12 +1,10 @@
-defaults:
-  - mode: hf  
-  - _self_
-
-tokenizer:
-  name: "openai/whisper-small"
-
-dataloader:
-  num_workers: 4
+seed: 42
+device: auto
+batch_size: 16
+pad_id: 50256
+beam_size: 5
+skip_model_load: false
+output_dir: "inference_predictions"
 
 model:
   encoder:
@@ -14,13 +12,26 @@ model:
   decoder:
     _target_: src.models.models.Decoder
 
-datasets: {}
+tokenizer:
+  name: "openai/whisper-small"
+
+dataloader:
+  num_workers: 4
+
+datasets:
+  hf:
+    enabled: false    
+    lengths_test: [2620, 2939] 
+
+  custom_dir:
+    enabled: false    
+    path: "/path/to/your/custom_dir"  
 
 inferencer:
-  seed: 1
-  device: auto           
-  batch_size: 16        
-  pad_id: 50256
-  beam_size: 5
-  skip_model_load: false 
-  output_dir: "inference_predictions" 
+  seed: ${seed}
+  device: ${device}
+  batch_size: ${batch_size}
+  pad_id: ${pad_id}
+  beam_size: ${beam_size}
+  skip_model_load: ${skip_model_load}
+  output_dir: ${output_dir}
