@@ -19,8 +19,8 @@ If you're using this repo for experiments, treat it as a starting point — many
 - Dataset helpers: `src/datasets/` (streaming & custom-dir loader)
 - Demo notebook: `DEMO.ipynb`
 - Weights links:
--- encoder: https://drive.google.com/uc?export=download&id=1UpX3_UgrbRTWYunAMHPsR09a1_zHzj7E
-   decoder: https://drive.google.com/uc?export=download&id=1A1Cb1TCn5LWYuIADkOsfvzlBBBi2L2bi
+- encoder: https://drive.google.com/uc?export=download&id=1UpX3_UgrbRTWYunAMHPsR09a1_zHzj7E
+- decoder: https://drive.google.com/uc?export=download&id=1A1Cb1TCn5LWYuIADkOsfvzlBBBi2L2bi
 
 
 ## Requirements
