@@ -38,7 +38,9 @@ trainer:
   examples_per_log: 3
   eval_batches: 10
   seed: 1
+  start_epoch: 0
 
 pretrained:
+  enabled: False
   encoder_link: "https://drive.google.com/uc?export=download&id=1UpX3_UgrbRTWYunAMHPsR09a1_zHzj7E"
   decoder_link: "https://drive.google.com/uc?export=download&id=1A1Cb1TCn5LWYuIADkOsfvzlBBBi2L2bi"

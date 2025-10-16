@@ -124,28 +124,35 @@ def main(config):
         examples_per_log=int(config.trainer.examples_per_log),
         eval_batches=int(config.trainer.eval_batches),
     )
+    
 
     trainer = Trainer(**trainer_kwargs)
 
     if config.get("pretrained", None):
-        enc_link = config.pretrained.get("encoder_link", None)
-        dec_link = config.pretrained.get("decoder_link", None)
-        if enc_link or dec_link:
-            import gdown
+        pretrained_cfg = config.pretrained
+        if pretrained_cfg.get("enabled", False):
+            enc_link = pretrained_cfg.get("encoder_link", None)
+            dec_link = pretrained_cfg.get("decoder_link", None)
 
-            tmp_dir = Path(get_original_cwd()) / ".pretrained"
-            tmp_dir.mkdir(parents=True, exist_ok=True)
-            enc_path = dec_path = None
-            if enc_link:
-                enc_path = str(tmp_dir / "encoder.pth")
-                gdown.download(enc_link, enc_path, quiet=False)
-            if dec_link:
-                dec_path = str(tmp_dir / "decoder.pth")
-                gdown.download(dec_link, dec_path, quiet=False)
+            if enc_link or dec_link:
+                import gdown
+                from pathlib import Path
+                from hydra.utils import get_original_cwd
 
-            trainer.load_models(enc_path, dec_path)
+                tmp_dir = Path(get_original_cwd()) / ".pretrained"
+                tmp_dir.mkdir(parents=True, exist_ok=True)
+                enc_path = dec_path = None
 
-    trainer.train(start_epoch=0)
+                if enc_link:
+                    enc_path = str(tmp_dir / "encoder.pth")
+                    gdown.download(enc_link, enc_path, quiet=False)
+                if dec_link:
+                    dec_path = str(tmp_dir / "decoder.pth")
+                    gdown.download(dec_link, dec_path, quiet=False)
+
+                trainer.load_models(enc_path, dec_path)
+
+    trainer.train(start_epoch=config.trainer.get("start_epoch", 0))
 
 
 if __name__ == "__main__":
